@@ -1,0 +1,5 @@
+$BalsaBuiltin minargs=3 check=BalsaBuiltinFunction_check call=BalsaBuiltinFunction_call acc+=rw:%TASK
+$BalsaRegisterType args=2 check=BalsaRegisterType_check call=BalsaRegisterType_call
+$BalsaUnref args=1 check=BalsaUnref_check call=BalsaUnref_call acc+=r:%TASK
+$BalsaRef args=1 check=BalsaRef_check call=BalsaRef_call acc+=r:%TASK
+$BalsaInternType args=2 check=BalsaInternType_check call=BalsaInternType_call

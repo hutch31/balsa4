@@ -1,0 +1,6 @@
+./configure --with-cds-includes=/home/cadtools5/cds_2008_2009/ldv_2009/tools/include \
+	--with-vcs-includes=/home/cadtools5/synopsys/Y-2006.06-SP1/include \
+	--with-icarus-includes=/usr/include \
+	--with-icarus-libs=/usr/lib \
+	--with-cver-includes=/usr/include/cver \
+	--with-modelsim-includes=/home/cadtools5/mgc/lnx/modelsim6.3a/modeltech/include

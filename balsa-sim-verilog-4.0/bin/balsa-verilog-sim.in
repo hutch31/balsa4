@@ -1,0 +1,183 @@
+#! /bin/sh
+#
+#	The Balsa Asynchronous Hardware Synthesis System
+#	Copyright (C) 1995-2003 Department of Computer Science
+#	The University of Manchester, Oxford Road, Manchester, UK, M13 9PL
+#	
+#	This program is free software; you can redistribute it and/or modify
+#	it under the terms of the GNU General Public License as published by
+#	the Free Software Foundation; either version 2 of the License, or
+#	(at your option) any later version.
+#	
+#	This program is distributed in the hope that it will be useful,
+#	but WITHOUT ANY WARRANTY; without even the implied warranty of
+#	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#	GNU General Public License for more details.
+#	
+#	You should have received a copy of the GNU General Public License
+#	along with this program; if not, write to the Free Software
+#	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+#
+#	`balsa-verilog-sim'
+#	Simulate a verilog file
+#	@configure_input@
+#
+#	$Id: balsa-verilog-sim.in,v 1.16 2004/04/14 01:46:10 janinl Exp $
+#
+
+BALSAINSTALLEDHOME=@prefix@
+if [ "${BALSAHOME}" = "" ]; then
+	BALSAHOME=${BALSAINSTALLEDHOME}
+fi
+PATH=${BALSAHOME}:${PATH}
+
+if [ $# -lt 1 ]; then
+	balsa-prog-banner balsa-verilog-sim 'balsa-verilog-sim: Verilog simulator invoker' \
+		'2003, The University of Manchester'
+	echo "version @VERSION@"
+	echo 'usage: balsa-verilog-sim [ <switches> ] <top-file-base-name>'
+	echo 'NB. The <top-file-base-name> need not include an extension'
+	echo
+	echo 'switches: -s <simulator>  - which simulator to use'
+	echo '          -B <breezefile> - Breeze file corresponding to given netlist'
+	echo '          -I <dir>        - Breeze import path component'
+	echo '          -D <name> <value> - Name/value pairs for command line arg. reading functions'
+	echo '          -f              - force regeneration of files'
+	echo
+	exit 1
+fi
+
+IMPORTPATH=
+BREEZEFILE=
+CMDLINEOPTS=
+FORCE=
+
+switch=yes
+while [ "${switch}" = "yes" ]; do
+	switch=no
+
+	if [ "$1" = "-s" ]; then
+		shift
+		SIMULATOR=$1
+		shift
+		case ${SIMULATOR} in
+			cds)
+				SIMULATOR=vxl
+				;;
+		esac
+		if echo @supported_simulators@ | grep ${SIMULATOR} > /dev/null 2> /dev/null ; then
+			:
+		else
+			echo balsa-verilog-sim: simulator ${SIMULATOR} not supported
+			exit 1
+		fi
+		switch=yes
+	elif [ "$1" = "-B" ]; then
+		shift
+		BREEZEFILE=$1
+		shift
+		switch=yes
+	elif [ "$1" = "-I" ]; then
+		shift
+		IMPORTPATH="${IMPORTPATH} -I $1"
+		shift
+		switch=yes
+	elif [ "$1" = "-D" ]; then
+		shift
+		CMDLINEOPTS="${CMDLINEOPTS} +BalsaSim+${1}=${2}"
+		shift
+		shift
+		switch=yes
+	elif [ "$1" = "-f" ]; then
+		shift
+		FORCE=1
+		switch=yes
+	fi
+done
+
+if [ -z "${SIMULATOR}" ]; then
+	SIMULATOR=icarus
+fi
+
+BASENAME=`basename $1 .v`
+shift
+
+if [ -n "${BASENAME}" ] ; then
+	if [ -f "${BASENAME}.v" ] ; then
+		VERILOGFILENAME=${BASENAME}.v
+	else
+		echo "balsa-verilog-sim: can\'t find Verilog file \`${BASENAME}.v\'"
+		exit 1
+	fi
+else
+	echo Invalid base filename
+	exit 1
+fi
+
+MAKEBUILTIN="balsa-verilog-make-builtin-lib -s ${SIMULATOR} ${IMPORTPATH}"
+if [ -n "${BREEZEFILE}" ]; then
+	MAKEBUILTIN="${MAKEBUILTIN} -B ${BREEZEFILE}"
+fi
+
+rm -f ${BASENAME}.log
+
+if [ -f ${BASENAME}.la ]; then
+	DLNAME=`grep '^dlname' ${BASENAME}.la | sed "s/dlname='\(.*\)'/\1/"`
+fi
+
+# (re)build the shared object
+if balsa-file-test "${VERILOGFILENAME}" -ot "${DLNAME}" -f && test -z "${FORCE}"; then
+	echo Not regenerating ${BASENAME}.${SHAREDOBJEXTENSION} >> ${BASENAME}.log
+else
+	echo balsa-verilog-sim: executing: ${MAKEBUILTIN} ${BASENAME}
+	${MAKEBUILTIN} ${BASENAME} >> ${BASENAME}.log 2>&1 ||
+	( echo balsa-verilog-sim: problem building VPI/PLI library containing Balsa builtins, read ${BASENAME}.log
+	exit 1
+	) &&
+	DLNAME=`grep '^dlname' ${BASENAME}.la | sed "s/dlname='\(.*\)'/\1/"`
+fi &&
+
+case ${SIMULATOR} in
+	icarus)
+		VVPFILENAME=${BASENAME}.out &&
+		if balsa-file-test ${VVPFILENAME} -nt ${VERILOGFILENAME} -f && test -z "${FORCE}"; then
+			echo Not regenerating ${VVPFILENAME} >> ${BASENAME}.log
+		else
+			echo iverilog -o ${VVPFILENAME} -T typ -m./${DLNAME} ${VERILOGFILENAME}
+			iverilog -o ${VVPFILENAME} -T typ -m./${DLNAME} ${VERILOGFILENAME}
+		fi &&
+		echo vvp -M. ${VVPFILENAME} ${CMDLINEOPTS} 
+		vvp -M. ${VVPFILENAME} ${CMDLINEOPTS} 
+		;;
+
+	modelsim)
+		echo vlib work &&
+		vlib work &&
+		echo vlog -work ./work ${VERILOGFILENAME}
+		vlog -work ./work ${VERILOGFILENAME} &&
+		echo vsim -c -quiet ${CMDLINEOPTS} -pli ${DLNAME} -lib ./work -do \"run -all \; quit\" test
+		vsim -c -quiet ${CMDLINEOPTS} -pli ${DLNAME} -lib ./work -do "run -all ; quit" test
+		;;
+
+	vxl | cds)
+		echo verilog ${CMDLINEOPTS} +@cds_pliload_plusopt@=./${DLNAME}:bootstrap ${VERILOGFILENAME}
+		verilog ${CMDLINEOPTS} +@cds_pliload_plusopt@=./${DLNAME}:bootstrap ${VERILOGFILENAME}
+		;;
+
+	ncv)
+		echo ncverilog ${CMDLINEOPTS} +loadpli1=./${DLNAME}:bootstrap ${VERILOGFILENAME}
+		ncverilog ${CMDLINEOPTS} +loadpli1=./${DLNAME}:bootstrap ${VERILOGFILENAME}
+		;;
+
+	vcs)
+		echo vcs -R ${CMDLINEOPTS} -Mupdate -e VCS_main -P ${BALSAHOME}/share/verilog/vcs/builtin.tab ${DLNAME} ${VERILOGFILENAME}
+		vcs -R ${CMDLINEOPTS} -Mupdate -e VCS_main -P ${BALSAHOME}/share/verilog/vcs/builtin.tab ${DLNAME} ${VERILOGFILENAME}
+		;;
+	
+	cver)
+		echo cver ${CMDLINEOPTS} +loadpli1=./${DLNAME}:bootstrap ${VERILOGFILENAME}
+		cver ${CMDLINEOPTS} +loadpli1=./${DLNAME}:bootstrap ${VERILOGFILENAME}
+		;;
+
+esac
+

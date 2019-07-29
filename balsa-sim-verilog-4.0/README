@@ -1,0 +1,79 @@
+                                           
+ |_  _ |  _ _      _.._    . , _ ._ .| _  _ 
+ |_)(_\|_/ (_\ - _/ |||| - |/ (-'| `||(_)(_|
+
+    (C) 1995-2006 School of Computer Science,
+    The University of Manchester,
+    Manchester
+    M13 9PL, UK
+    email: balsa@cs.man.ac.uk
+
+balsa-sim-verilog is a package which makes Verilog simulation of
+Balsa descriptions easier by providing wrapper scripts for common
+simulators and by supporting user-written `builtin' functions which
+can be called from Balsa.
+
+To install this package first install Balsa and add Balsa's bin
+directory to your path.  Then:
+
+1) ./configure
+
+This will use balsa-config to find the Balsa installation directory
+and the correct `tech' directory to install into.
+
+To configure balsa-sim-verilog for particular simulators, options must
+be passed to configure for each simulator indicating where the C header
+files and (possibly) libraries for that simulator can be found.  These
+options are:
+
+For Icarus Verilog:
+
+--with-icarus-includes=<header-file-dir>
+--with-icarus-libs=<lib-dir>
+
+For Synopsys VCS:
+
+--with-vcs-includes=<header-file-dir>
+
+For Cadence Verilog simulators (NC-Verilog, Verilog-XL):
+
+--with-cds-includes=<header-file-dir>
+
+For Model Technologies Modelsim:
+
+--with-modelsim-includes=<header-file-dir>
+
+For Cver:
+
+--with-cver-includes=<header-file-dir>
+
+balsa-sim-verilog can be configured for any or all of these simulators by
+including all the required options in a single execution of ./configure.
+
+2) make install
+
+Installs this package and makes the new Balsa package `balsa-sim-verilog'
+
+
+N.B.
+====
+
+Special care must be taken with the Cver simulator, which doesn't
+install its header files in the installation directory. These must be
+kept (and copied if necessary) from the sources directory.
+
+There appears to be some kind of problem with the builtins that rarely
+(but repeatably) appears when using VCS6.0.1 (and possibly later
+versions). If an otherwise inexplicable uninitialised object error
+occurs then you may be seeing this. This is undiagnosed as of this
+release, but the finger of suspicion points at something strange in
+VCS' acc_* access routines (or the way they are used).
+
+A significant amount of the initialisation time complexity in
+builtin-verilog.c is down to the multitude of different ways the
+simulators handle the startup process and loading of PLI/VPI shared
+objects. Anyone implementing support for a new simulator is cautioned
+to take care here. This code may become simpler as simulator bugs get
+fixed and more simulators more completely implement the VPI API
+(Modelsim and Icarus are there already for the purposes of this code).
+
